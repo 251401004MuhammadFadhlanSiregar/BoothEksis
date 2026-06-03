@@ -1,5 +1,7 @@
 CONFIG += c++17
 QT += core gui widgets multimedia multimediawidgets
+QT += core gui widgets multimedia multimediawidgets printsupport
+QT += printsupport
 
 CONFIG += c++17
 

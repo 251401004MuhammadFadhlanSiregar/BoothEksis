@@ -1,5 +1,6 @@
 #include "stickerpage.h"
 
+#include <QWidget>
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
@@ -16,6 +17,11 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QDebug>
+#include <QPrinter>
+#include <QPrintDialog>
+#include <QPainter>
+#include <QStyle>
+#include <QApplication>
 
 // ── palette ──────────────────────────────────────────────────────────
 static const QColor S_BG      { "#A89BC8" };
@@ -510,19 +516,23 @@ void StickerPage::setPhotos(const QVector<QPixmap> &photos)
 void StickerPage::repositionBottomButtons()
 {
     const int PAGE_W  = 820;
-    const int btnW    = 160;
-    const int spacing = 16;
-    int totalBW = 3*btnW + 2*spacing;
+    const int btnW    = 140; // Disesuaikan sedikit lebarnya agar muat 4 tombol berjajar
+    const int spacing = 12;  // Jarak antar tombol
+
+    // Total lebar untuk 4 tombol: Download, Share, Print, Home
+    int totalBW = 4 * btnW + 3 * spacing;
     int startX  = (PAGE_W - totalBW) / 2;
-    int btnY    = m_canvas->y() + m_canvas->height() + 16;
+    int btnY    = m_canvas->y() + m_canvas->height() + 20;
 
-    m_downloadBtn->move(startX,                        btnY);
-    m_shareBtn   ->move(startX + btnW + spacing,       btnY);
-    m_homeBtn    ->move(startX + (btnW+spacing)*2,     btnY);
+    // Pindahkan ke-4 tombol secara berurutan dari kiri ke kanan di bawah canvas
+    m_downloadBtn->setGeometry(startX, btnY, btnW, 48);
+    m_shareBtn   ->setGeometry(startX + (btnW + spacing), btnY, btnW, 48);
+    m_printBtn   ->setGeometry(startX + (btnW + spacing) * 2, btnY, btnW, 48); // Tombol PRINT di posisi biru
+    m_homeBtn    ->setGeometry(startX + (btnW + spacing) * 3, btnY, btnW, 48);
 
-    // Update tinggi scroll content
-    int contentH = btnY + 48 + 16;
-    m_scrollContent->setFixedSize(820, contentH);
+    // Update tinggi scroll content agar semua tombol bisa di-scroll dengan aman
+    int contentH = btnY + 48 + 25;
+    m_scrollContent->setFixedSize(PAGE_W, contentH);
 }
 
 void StickerPage::setupUI()
@@ -544,7 +554,7 @@ void StickerPage::setupUI()
     int bx     = (PAGE_W - totalW) / 2;
     int by     = 42;
 
-    m_hintLabel = new QLabel("✨  Add Stickers!  (drag to reposition)", this);
+    m_hintLabel = new QLabel("✨  Add Stickers! (Drag & Drop Sticker)", this);
     m_hintLabel->setAlignment(Qt::AlignHCenter);
     m_hintLabel->setGeometry(0, by, PAGE_W, 24);
     m_hintLabel->setStyleSheet("color:#555; font-size:13px;");
@@ -601,46 +611,63 @@ void StickerPage::setupUI()
     int canvasX = (PAGE_W - m_canvas->width()) / 2;
     m_canvas->move(canvasX, 10);
 
-    // ── Bottom buttons di dalam scroll content ──
-    const int btnW    = 160;
-    const int spacing = 16;
-    int totalBW = 3*btnW + 2*spacing;
-    int startX  = (PAGE_W - totalBW) / 2;
-
-    auto mkBtn = [&](const QString &label, int x, int y) {
+    // ── Inisialisasi Seluruh Tombol Kontrol (Termasuk PRINT) di m_scrollContent ──
+    auto mkBtn = [&](const QString &label, const QString &customStyle) {
         auto *b = new QPushButton(label, m_scrollContent);
-        b->setGeometry(x, y, btnW, 48);
         b->setCursor(Qt::PointingHandCursor);
-        b->setStyleSheet(
-            "QPushButton {"
-            "  background:white; border:2px solid #AAAAAA;"
-            "  border-radius:16px; font-size:15px;"
-            "  font-weight:bold; color:#333;}"
-            "QPushButton:hover{background:#F5F5F5;border-color:#888;}"
-            "QPushButton:pressed{background:#EEEEEE;}");
+        if (customStyle.isEmpty()) {
+            b->setStyleSheet(
+                "QPushButton {"
+                "  background:white; border:2px solid #AAAAAA;"
+                "  border-radius:16px; font-size:14px;"
+                "  font-weight:bold; color:#333;}"
+                "QPushButton:hover{background:#F5F5F5;border-color:#888;}"
+                "QPushButton:pressed{background:#EEEEEE;}");
+        } else {
+            b->setStyleSheet(customStyle);
+        }
         return b;
     };
 
-    // Posisi tombol — akan di-update di repositionBottomButtons()
-    int btnY = m_canvas->y() + m_canvas->height() + 16;
-    m_downloadBtn = mkBtn("⬇  Download", startX,                        btnY);
-    m_shareBtn    = mkBtn("🔗  Share",   startX + btnW + spacing,       btnY);
-    m_homeBtn     = mkBtn("🏠  Home",    startX + (btnW+spacing)*2,     btnY);
+    // Style khusus untuk tombol PRINT (Hijau Pastel sesuai UI Anda)
+    QString printStyle =
+        "QPushButton {"
+        "  background-color: #C1F0D1;"
+        "  border: 2px solid #2D5A27;"
+        "  border-radius: 16px;"
+        "  color: #1B331A;"
+        "  font-size: 14px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover { background-color: #A8E6B9; }"
+        "QPushButton:pressed { background-color: #92D5A4; }";
 
-    // Total tinggi content
-    int contentH = btnY + 48 + 16;
-    m_scrollContent->setFixedSize(PAGE_W, contentH);
+    // Membuat instance tombol
+    m_downloadBtn = mkBtn("⬇  Download", "");
+    m_shareBtn    = mkBtn("🔗  Share", "");
+
+    m_printBtn    = mkBtn("🖨  PRINT", printStyle);
+    m_printBtn->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon)); // Icon bawaan komputer/printer Qt
+    m_printBtn->setIconSize(QSize(20, 20));
+
+    m_homeBtn     = mkBtn("🏠  Home", "");
+
+    // Atur posisi awal tombol & setup ukuran scroll content area
+    repositionBottomButtons();
+
     m_scrollArea->setWidget(m_scrollContent);
 
-    // Connect signals
+    // ── Connect signals ──
     connect(m_clearBtn,    &QPushButton::clicked,
             m_canvas,      &StickerCanvas::clearStickers);
     connect(m_downloadBtn, &QPushButton::clicked,
-            this, &StickerPage::onDownload);
+            this,          &StickerPage::onDownload);
     connect(m_shareBtn,    &QPushButton::clicked,
-            this, &StickerPage::onShare);
+            this,          &StickerPage::onShare);
+    connect(m_printBtn,    &QPushButton::clicked,
+            this,          &StickerPage::onPrint);
     connect(m_homeBtn,     &QPushButton::clicked,
-            this, &StickerPage::homeClicked);
+            this,          &StickerPage::homeClicked);
 }
 
 void StickerPage::onAddSticker(int type)
@@ -691,5 +718,49 @@ void StickerPage::resizeEvent(QResizeEvent *e)
         int stickerRowBottom = m_hintLabel->y() + 28 + 56 + 10;
         m_scrollArea->setGeometry(0, stickerRowBottom,
                                   width(), height() - stickerRowBottom);
+    }
+}
+
+void StickerPage::onPrint()
+{
+    // 1. Ambil hasil render foto strip asli dari canvas
+    QPixmap pm = m_canvas->renderToPixmap();
+    if (pm.isNull()) {
+        QMessageBox::warning(this, "Error", "Tidak ada gambar untuk dicetak.");
+        return;
+    }
+
+    // 2. Inisialisasi QPrinter dengan resolusi tinggi (High Resolution)
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setPageOrientation(QPageLayout::Portrait);
+    printer.setDocName("BoothEksis_PhotoStrip");
+
+    // 3. Tampilkan Dialog Printer agar user bisa memilih printer fisik atau "Save as PDF"
+    QPrintDialog dialog(&printer, this);
+    dialog.setWindowTitle("Cetak Photo Strip");
+
+    if (dialog.exec() == QDialog::Accepted) {
+        // 4. Gunakan QPainter untuk menggambar Pixmap ke halaman cetak printer
+        QPainter painter(&printer);
+        if (!painter.isActive()) {
+            QMessageBox::warning(this, "Error", "Gagal memulai proses pencetakan.");
+            return;
+        }
+
+        // Dapatkan ukuran area cetak halaman printer
+        QRect pageRect = printer.pageRect(QPrinter::DevicePixel).toRect();
+
+        // Lakukan scaling gambar agar muat secara proporsional di kertas printer
+        QPixmap scaledPm = pm.scaled(pageRect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+        // Posisikan gambar di tengah-tengah kertas cetak
+        int x = pageRect.left() + (pageRect.width() - scaledPm.width()) / 2;
+        int y = pageRect.top() + (pageRect.height() - scaledPm.height()) / 2;
+
+        // Gambar pixmap ke objek printer
+        painter.drawPixmap(x, y, scaledPm);
+        painter.end(); // Akhiri sesi cetak, dokumen akan dikirim ke printer
+
+        QMessageBox::information(this, "Sukses", "Dokumen berhasil dikirim ke printer!");
     }
 }

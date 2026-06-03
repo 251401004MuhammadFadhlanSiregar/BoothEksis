@@ -73,6 +73,7 @@ private slots:
     void onAddSticker(int type);
     void onDownload();
     void onShare();
+    void onPrint();
 
 private:
     void setupUI();
@@ -86,6 +87,7 @@ private:
     QPushButton *m_downloadBtn;
     QPushButton *m_homeBtn;
     QPushButton *m_shareBtn;
+    QPushButton *m_printBtn;
     QPushButton *m_clearBtn;
     QLabel      *m_hintLabel;
     QScrollArea *m_scrollArea;
