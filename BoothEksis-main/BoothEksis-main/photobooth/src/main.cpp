@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
     app.setStyle("Fusion");
 
     MainWindow w;
-    // Center on screen
     QScreen *screen = QGuiApplication::primaryScreen();
     QRect sg = screen->availableGeometry();
     w.setFixedSize(820, 900);

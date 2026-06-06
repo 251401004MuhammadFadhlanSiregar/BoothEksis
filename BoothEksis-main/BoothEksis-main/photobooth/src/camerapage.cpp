@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QCamera>
+#include <QCameraDevice>
+#include <QCameraFormat>
 #include <QVideoWidget>
 #include <QImageCapture>
 #include <QMediaDevices>
@@ -49,10 +51,9 @@ void CameraPage::drawSparkle(QPainter &p, QPointF c, float sz, QColor col)
     p.restore();
 }
 
-// ── constructor ──────────────────────────────────────────────────────
 CameraPage::CameraPage(QWidget *parent)
     : QWidget(parent)
-    , m_logoLabel(nullptr)        // widgets section (paling atas di .h)
+    , m_logoLabel(nullptr)
     , m_viewfinderContainer(nullptr)
     , m_countdownOverlay(nullptr)
     , m_frameLabel(nullptr)
@@ -60,12 +61,12 @@ CameraPage::CameraPage(QWidget *parent)
     , m_backBtn(nullptr)
     , m_orientBtn0(nullptr)
     , m_orientBtn1(nullptr)
-    , m_landscape0(true)          // bool landscape (masih widgets section)
+    , m_landscape0(true)
     , m_landscape1(true)
-    , m_camera(nullptr)           // camera section
+    , m_camera(nullptr)
     , m_imageCapture(nullptr)
     , m_captureSession(nullptr)
-    , m_timer(nullptr)            // state section
+    , m_timer(nullptr)
     , m_countdownValue(3)
     , m_currentSlot(0)
     , m_uploadMode(false)
@@ -75,26 +76,23 @@ CameraPage::CameraPage(QWidget *parent)
     setupUI();
     setupCamera();
 }
+
 void CameraPage::recalcSlotRects()
 {
     const int stripW = m_stripRect.width();
 
-    // Landscape: 380×210  |  Portrait: 210×280
     QSize s0 = m_landscape0 ? QSize(380, 210) : QSize(210, 280);
     QSize s1 = m_landscape1 ? QSize(380, 210) : QSize(210, 280);
 
     int slotX0 = m_stripRect.x() + (stripW - s0.width()) / 2;
     int slotX1 = m_stripRect.x() + (stripW - s1.width()) / 2;
 
-    // Slot 0 dimulai 60px dari atas strip (beri ruang judul)
     int top0 = m_stripRect.y() + 60;
     m_slot0Rect = QRect(slotX0, top0, s0.width(), s0.height());
 
-    // Slot 1 dimulai 20px di bawah slot 0
     int top1 = m_slot0Rect.bottom() + 20;
     m_slot1Rect = QRect(slotX1, top1, s1.width(), s1.height());
 
-    // Sesuaikan tinggi strip agar muat kedua slot + padding bawah
     int neededH = (m_slot1Rect.bottom() - m_stripRect.y()) + 50;
     m_stripRect.setHeight(neededH);
 }
@@ -103,51 +101,44 @@ void CameraPage::setupUI()
 {
     const int W = 820;
 
-    // ── Strip dimensions (centred) ──
     int stripW  = 500;
     int stripH  = 600;
     int stripX  = (W - stripW) / 2;
     int stripY  = 110;
     m_stripRect = QRect(stripX, stripY, stripW, stripH);
 
-    // Two photo slots inside strip
     int slotW = 380;
     int slotH = 210;
     int slotX = stripX + (stripW - slotW) / 2;
     m_slot0Rect = QRect(slotX, stripY + 70,  slotW, slotH);
     m_slot1Rect = QRect(slotX, stripY + 310, slotW, slotH);
 
-    // ── Camera viewfinder (fills active slot) ──
-    m_viewfinderContainer = new QVideoWidget(this);          // parent = this (CameraPage)
-    m_viewfinderContainer->setGeometry(m_slot0Rect);         // posisi tepat di dalam slot
+    m_viewfinderContainer = new QVideoWidget(this);
+    m_viewfinderContainer->setGeometry(m_slot0Rect);
     m_viewfinderContainer->setStyleSheet("background:black;");
-    m_viewfinderContainer->lower();                          // taruh di bawah layer paint
+    m_viewfinderContainer->lower();
 
-    // ── Countdown overlay ──
     m_countdownOverlay = new QLabel(this);
     m_countdownOverlay->setAlignment(Qt::AlignCenter);
-    m_countdownOverlay->setGeometry(W / 2 - 40, stripY + 30, 80, 50);
+    m_countdownOverlay->setGeometry(W / 2 - 35, stripY + 20, 70, 44);
     m_countdownOverlay->setStyleSheet(
         "QLabel {"
-        "  background: rgba(180, 140, 220, 230);"  // ungu muda
+        "  background: rgba(180, 140, 220, 230);"
         "  color: #FFFFFF;"
-        "  font-size: 28px;"                        // lebih kecil
+        "  font-size: 28px;"
         "  font-weight: bold;"
         "  border-radius: 12px;"
         "  border: 2px solid rgba(255,255,255,160);"
         "  padding: 2px 10px;"
         "}");
-    m_countdownOverlay->setGeometry(W / 2 - 35, stripY + 20, 70, 44);
     m_countdownOverlay->hide();
-    m_countdownOverlay->raise();   // ← countdown tampil di atas viewfinder
+    m_countdownOverlay->raise();
 
-    // ── Frame indicator label ──
     m_frameLabel = new QLabel("Photo 1 / 2", this);
     m_frameLabel->setAlignment(Qt::AlignCenter);
     m_frameLabel->setGeometry(0, stripY + stripH + 10, W, 24);
     m_frameLabel->setStyleSheet("color:#555; font-size:14px; font-weight:bold;");
 
-    // ── Capture / Start button ──
     m_captureBtn = new QPushButton("Start Session", this);
     m_captureBtn->setGeometry(W / 2 - 110, stripY + stripH + 46, 220, 52);
     m_captureBtn->setCursor(Qt::PointingHandCursor);
@@ -163,11 +154,10 @@ void CameraPage::setupUI()
         "QPushButton:hover  { background: #F0F090; }"
         "QPushButton:pressed{ background: #E0E070; }"
         "QPushButton:disabled{ background: #E0E0E0; color: #888; border-color:#C0C0C0; }"
-    );
+        );
     connect(m_captureBtn, &QPushButton::clicked,
             this, &CameraPage::onCaptureButtonClicked);
 
-    // ── Back button ──
     m_backBtn = new QPushButton("← Back", this);
     m_backBtn->setGeometry(20, 20, 100, 36);
     m_backBtn->setCursor(Qt::PointingHandCursor);
@@ -180,13 +170,12 @@ void CameraPage::setupUI()
         "  color: #333;"
         "}"
         "QPushButton:hover { background: white; }"
-    );
+        );
     connect(m_backBtn, &QPushButton::clicked,
             this, &CameraPage::backClicked);
-    // ── Sebelum buat tombol, hitung ulang rect dulu ──
+
     recalcSlotRects();
 
-    // ── Tombol orientasi slot 0 ──
     m_orientBtn0 = new QPushButton("⟳ Landscape (klik → Portrait)", this);
     m_orientBtn0->setCursor(Qt::PointingHandCursor);
     m_orientBtn0->setStyleSheet(
@@ -210,7 +199,6 @@ void CameraPage::setupUI()
         update();
     });
 
-    // ── Tombol orientasi slot 1 ──
     m_orientBtn1 = new QPushButton("⟳ Landscape (klik → Portrait)", this);
     m_orientBtn1->setCursor(Qt::PointingHandCursor);
     m_orientBtn1->setStyleSheet(m_orientBtn0->styleSheet());
@@ -223,16 +211,17 @@ void CameraPage::setupUI()
         update();
     });
 
-    updateOrientButtons();  // posisi & teks awal tombol
-    // ── Batasi ukuran window agar tidak full screen ──
-    setFixedSize(820, 820);               // ukuran tetap
-    setWindowFlags(Qt::Window
-                   | Qt::WindowMinimizeButtonHint
-                   | Qt::WindowCloseButtonHint);  // tombol minimize aktif
-}  // ← ini tutup kurung setupUI() yang asli
-
+    updateOrientButtons();
+    setFixedSize(820, 820);
+    setWindowFlags(Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowCloseButtonHint);
+}
 
 void CameraPage::setupCamera()
+{
+    updateCameraDeviceAndResolution("default", QSize(1280, 720));
+}
+
+void CameraPage::updateCameraDeviceAndResolution(const QString &cameraId, const QSize &resolution)
 {
     if (QMediaDevices::videoInputs().isEmpty()) {
         qWarning() << "No camera found - upload-mode only.";
@@ -240,42 +229,78 @@ void CameraPage::setupCamera()
         return;
     }
 
-    m_camera         = new QCamera(this);
-    m_captureSession = new QMediaCaptureSession(this);
-    m_imageCapture   = new QImageCapture(this);
+    bool wasActive = m_camera && m_camera->isActive();
+    if (m_camera) {
+        m_camera->stop();
+        delete m_camera;
+        m_camera = nullptr;
+    }
+
+    // Find custom selected camera device from system inputs list
+    QCameraDevice selectedDevice;
+    const QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+    if (cameraId == "default" || cameraId.isEmpty()) {
+        selectedDevice = QMediaDevices::defaultVideoInput();
+    } else {
+        for (const auto &camera : cameras) {
+            if (camera.id() == cameraId) {
+                selectedDevice = camera;
+                break;
+            }
+        }
+        if (selectedDevice.isNull() && !cameras.isEmpty()) {
+            selectedDevice = cameras.first();
+        }
+    }
+
+    m_camera = new QCamera(selectedDevice, this);
+
+    // Apply custom QCameraFormat matching target resolution
+    if (!selectedDevice.isNull() && !resolution.isEmpty()) {
+        const QList<QCameraFormat> formats = selectedDevice.videoFormats();
+        QCameraFormat bestFormat;
+        int bestDiff = 999999;
+        for (const auto &format : formats) {
+            QSize fs = format.resolution();
+            int diff = qAbs(fs.width() - resolution.width()) + qAbs(fs.height() - resolution.height());
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                bestFormat = format;
+            }
+        }
+        if (!bestFormat.isNull()) {
+            m_camera->setCameraFormat(bestFormat);
+            qDebug() << "Selected Camera Resolution Format:" << bestFormat.resolution();
+        }
+    }
+
+    if (!m_captureSession) {
+        m_captureSession = new QMediaCaptureSession(this);
+    }
+    if (!m_imageCapture) {
+        m_imageCapture = new QImageCapture(this);
+        connect(m_imageCapture, &QImageCapture::imageCaptured,
+                this, &CameraPage::onImageCaptured);
+    }
 
     m_captureSession->setCamera(m_camera);
     m_captureSession->setImageCapture(m_imageCapture);
-    m_captureSession->setVideoOutput(m_viewfinderContainer);  // pakai m_viewfinder yang sudah dibuat di setupUI()
+    m_captureSession->setVideoOutput(m_viewfinderContainer);
 
-    connect(m_imageCapture, &QImageCapture::imageCaptured,
-            this, &CameraPage::onImageCaptured);
-
-    m_camera->start();
+    if (wasActive && !m_uploadMode) {
+        m_camera->start();
+    }
 }
-// ── updateOrientButtons ──────────────────────────────────────────────
+
 void CameraPage::updateOrientButtons()
 {
-    // Posisi tombol: tepat 26px di atas masing-masing slot
-    m_orientBtn0->setGeometry(
-        m_slot0Rect.x(),
-        m_slot0Rect.y() - 26,
-        m_slot0Rect.width(), 24);
+    m_orientBtn0->setGeometry(m_slot0Rect.x(), m_slot0Rect.y() - 26, m_slot0Rect.width(), 24);
+    m_orientBtn1->setGeometry(m_slot1Rect.x(), m_slot1Rect.y() - 26, m_slot1Rect.width(), 24);
 
-    m_orientBtn1->setGeometry(
-        m_slot1Rect.x(),
-        m_slot1Rect.y() - 26,
-        m_slot1Rect.width(), 24);
-
-    m_orientBtn0->setText(m_landscape0
-                              ? "⟳ Landscape  (klik → Portrait)"
-                              : "⟳ Portrait   (klik → Landscape)");
-
-    m_orientBtn1->setText(m_landscape1
-                              ? "⟳ Landscape  (klik → Portrait)"
-                              : "⟳ Portrait   (klik → Landscape)");
+    m_orientBtn0->setText(m_landscape0 ? "⟳ Landscape  (klik → Portrait)" : "⟳ Portrait   (klik → Landscape)");
+    m_orientBtn1->setText(m_landscape1 ? "⟳ Landscape  (klik → Portrait)" : "⟳ Portrait   (klik → Landscape)");
 }
-// ── startSession ─────────────────────────────────────────────────────
+
 void CameraPage::startSession(bool uploadMode)
 {
     m_uploadMode     = uploadMode;
@@ -284,8 +309,8 @@ void CameraPage::startSession(bool uploadMode)
     m_countdownValue = 3;
     m_photos[0]      = QPixmap();
     m_photos[1]      = QPixmap();
-    recalcSlotRects();                                       // ← TAMBAH
-    updateOrientButtons();                                   // ← TAMBAH
+    recalcSlotRects();
+    updateOrientButtons();
     m_viewfinderContainer->setGeometry(m_slot0Rect);
     m_frameLabel->setText("Photo 1 / 2");
     m_countdownOverlay->hide();
@@ -295,7 +320,6 @@ void CameraPage::startSession(bool uploadMode)
         if (m_camera) m_camera->stop();
         m_viewfinderContainer->hide();
         update();
-        // Go immediately to file picker
         QTimer::singleShot(200, this, &CameraPage::handleUploadMode);
     } else {
         m_captureBtn->setText("Capture");
@@ -320,7 +344,6 @@ void CameraPage::stopCamera()
     m_countdownOverlay->hide();
 }
 
-// ── Countdown logic ──────────────────────────────────────────────────
 void CameraPage::startCountdown()
 {
     m_countdownValue = 3;
@@ -354,7 +377,6 @@ void CameraPage::triggerCapture()
     if (m_imageCapture) {
         m_imageCapture->capture();
     } else {
-        // Fallback: generate a solid-color placeholder
         QPixmap placeholder(380, 210);
         placeholder.fill(m_currentSlot == 0 ? QColor("#D0C0E8") : QColor("#C0D0E8"));
         onImageCaptured(-1, placeholder.toImage());
@@ -370,17 +392,12 @@ void CameraPage::onCaptureButtonClicked()
     }
 }
 
-// GANTI seluruh fungsi onImageCaptured:
-void CameraPage::onImageCaptured(int /*id*/, const QImage &img)
+void CameraPage::onImageCaptured(int, const QImage &img)
 {
-    // Tentukan target rect sesuai slot aktif (portrait atau landscape)
     QRect targetRect = (m_currentSlot == 0) ? m_slot0Rect : m_slot1Rect;
 
-    // Crop captured image agar sesuai orientasi slot
     QPixmap raw = QPixmap::fromImage(img);
-    QPixmap scaled = raw.scaled(targetRect.size(),
-                                Qt::KeepAspectRatioByExpanding,
-                                Qt::SmoothTransformation);
+    QPixmap scaled = raw.scaled(targetRect.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     QPixmap cropped(targetRect.size());
     QPainter cp(&cropped);
     cp.drawPixmap(0, 0, scaled,
@@ -407,37 +424,22 @@ void CameraPage::onImageCaptured(int /*id*/, const QImage &img)
 
 void CameraPage::onImageSaved(int, const QString &) {}
 
-// ── Upload mode ──────────────────────────────────────────────────────
 void CameraPage::handleUploadMode()
 {
-    // ── Dialog pertama: foto untuk frame ATAS ──
-    QString file0 = QFileDialog::getOpenFileName(
-        this,
-        "Pilih Foto untuk Frame Atas (1/2)",
-        QDir::homePath(),
-        "Images (*.png *.jpg *.jpeg *.bmp *.webp)"
-        );
+    QString file0 = QFileDialog::getOpenFileName(this, "Pilih Foto untuk Frame Atas (1/2)", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.bmp *.webp)");
     if (file0.isEmpty()) {
         emit backClicked();
         return;
     }
 
-    // ── Dialog kedua: foto untuk frame BAWAH ──
-    QString file1 = QFileDialog::getOpenFileName(
-        this,
-        "Pilih Foto untuk Frame Bawah (2/2)",
-        QDir::homePath(),
-        "Images (*.png *.jpg *.jpeg *.bmp *.webp)"
-        );
+    QString file1 = QFileDialog::getOpenFileName(this, "Pilih Foto untuk Frame Bawah (2/2)", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.bmp *.webp)");
     if (file1.isEmpty())
-        file1 = file0;  // fallback: pakai foto sama kalau user cancel
+        file1 = file0;
 
-    // Crop foto 0 sesuai orientasi slot 0
+    // Crop file 0
     {
         QPixmap raw(file0);
-        QPixmap scaled = raw.scaled(m_slot0Rect.size(),
-                                    Qt::KeepAspectRatioByExpanding,
-                                    Qt::SmoothTransformation);
+        QPixmap scaled = raw.scaled(m_slot0Rect.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
         QPixmap cropped(m_slot0Rect.size());
         QPainter cp(&cropped);
         cp.drawPixmap(0, 0, scaled,
@@ -447,12 +449,10 @@ void CameraPage::handleUploadMode()
         m_photos[0] = cropped;
     }
 
-    // Crop foto 1 sesuai orientasi slot 1
+    // Crop file 1
     {
         QPixmap raw(file1);
-        QPixmap scaled = raw.scaled(m_slot1Rect.size(),
-                                    Qt::KeepAspectRatioByExpanding,
-                                    Qt::SmoothTransformation);
+        QPixmap scaled = raw.scaled(m_slot1Rect.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
         QPixmap cropped(m_slot1Rect.size());
         QPainter cp(&cropped);
         cp.drawPixmap(0, 0, scaled,
@@ -465,31 +465,24 @@ void CameraPage::handleUploadMode()
     emit photosReady(m_photos);
 }
 
-// ── paintEvent – draws the strip preview background ──────────────────
 void CameraPage::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    // White page bg
     p.fillRect(rect(), Qt::white);
 
-    // "Bootheksis" header area
     p.setPen(QColor("#A0522D"));
     QFont hf("Arial", 13, QFont::Bold);
     p.setFont(hf);
     p.drawText(QRect(0, 18, width(), 28), Qt::AlignHCenter, "Bootheksis");
 
-    // Draw the strip background (decorative frame)
     drawSpaceStrip(p);
 
-    // // Draw captured photos into their slots
     const QRect photoSlots[2] = { m_slot0Rect, m_slot1Rect };
     for (int i = 0; i < 2; ++i) {
         if (!m_photos[i].isNull()) {
-            QPixmap scaled = m_photos[i].scaled(
-                photoSlots[i].size(), Qt::KeepAspectRatioByExpanding,
-                Qt::SmoothTransformation);
+            QPixmap scaled = m_photos[i].scaled(photoSlots[i].size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
             QRect src((scaled.width() - photoSlots[i].width()) / 2,
                       (scaled.height() - photoSlots[i].height()) / 2,
                       photoSlots[i].width(), photoSlots[i].height());
@@ -500,44 +493,35 @@ void CameraPage::paintEvent(QPaintEvent *)
 
 void CameraPage::drawSpaceStrip(QPainter &p)
 {
-    // Strip bg
     p.save();
     p.setPen(QPen(QColor("#8878B8"), 3));
     p.setBrush(CAM_STRIP);
     p.drawRoundedRect(m_stripRect, 14, 14);
 
-    // Title "SPACE ⊕ ADVENTURE"
     QFont tf("Arial", 20, QFont::Black);
     p.setFont(tf);
     p.setPen(Qt::white);
     for (int dx=-2;dx<=2;dx++) for (int dy=-2;dy<=2;dy++) if(dx||dy)
-        p.drawText(m_stripRect.adjusted(0,0,0,0).translated(dx,dy), Qt::AlignHCenter | Qt::AlignTop | Qt::TextSingleLine,
-                   "  SPACE ⊕ ADVENTURE  ");
+                p.drawText(m_stripRect.translated(dx,dy), Qt::AlignHCenter | Qt::AlignTop | Qt::TextSingleLine, "  SPACE ⊕ ADVENTURE  ");
     p.setPen(CAM_TITLE);
-    p.drawText(m_stripRect, Qt::AlignHCenter | Qt::AlignTop | Qt::TextSingleLine,
-               "  SPACE ⊕ ADVENTURE  ");
+    p.drawText(m_stripRect, Qt::AlignHCenter | Qt::AlignTop | Qt::TextSingleLine, "  SPACE ⊕ ADVENTURE  ");
 
-    // Slot backgrounds
     p.setPen(Qt::NoPen);
     p.setBrush(CAM_FRAME);
     p.drawRoundedRect(m_slot0Rect, 8, 8);
     p.drawRoundedRect(m_slot1Rect, 8, 8);
 
-    // Sparkles
     const QColor cols[3] = { CAM_STAR1, CAM_STAR2, CAM_STAR3 };
     struct Sp { float x,y,sz; int c; };
     const Sp sps[] = {
-        {0.04f,0.08f,7,0},{0.92f,0.06f,6,1},{0.88f,0.55f,8,2},
-        {0.05f,0.55f,7,1},{0.95f,0.30f,6,0},{0.10f,0.92f,7,2},
-        {0.85f,0.92f,8,0},{0.50f,0.05f,5,1},
-    };
+                      {0.04f,0.08f,7,0},{0.92f,0.06f,6,1},{0.88f,0.55f,8,2},
+                      {0.05f,0.55f,7,1},{0.95f,0.30f,6,0},{0.10f,0.92f,7,2},
+                      {0.85f,0.92f,8,0},{0.50f,0.05f,5,1},
+                      };
     for (const auto &s : sps)
-        drawSparkle(p,
-            {m_stripRect.x() + s.x * m_stripRect.width(),
-             m_stripRect.y() + s.y * m_stripRect.height()},
-            s.sz, cols[s.c]);
+        drawSparkle(p, {m_stripRect.x() + s.x * m_stripRect.width(), m_stripRect.y() + s.y * m_stripRect.height()}, s.sz, cols[s.c]);
 
-    // Saturn planet (left side)
+    // Saturn
     {
         int px = m_stripRect.x() + 22, py = m_stripRect.y() + 50;
         p.setBrush(QColor("#FFC0A0")); p.setPen(Qt::NoPen);
@@ -545,7 +529,7 @@ void CameraPage::drawSpaceStrip(QPainter &p)
         p.setPen(QPen(QColor("#E09070"),3));
         p.drawEllipse(px-8,py+10,52,16);
     }
-    // Earth planet (right side, lower)
+    // Earth
     {
         int px = m_stripRect.x() + m_stripRect.width() - 52;
         int py = m_stripRect.y() + 45;
@@ -555,7 +539,7 @@ void CameraPage::drawSpaceStrip(QPainter &p)
         p.drawEllipse(px+4,py+8,12,14);
         p.drawEllipse(px+14,py+2,10,12);
     }
-    // Brown meteor (left, mid)
+    // Meteor
     {
         int px = m_stripRect.x() + 8, py = m_stripRect.y() + m_stripRect.height()/2 - 12;
         p.setBrush(QColor("#CD853F")); p.setPen(Qt::NoPen);
@@ -564,27 +548,22 @@ void CameraPage::drawSpaceStrip(QPainter &p)
         p.drawEllipse(px+7,py+5,8,6);
         p.drawEllipse(px+4,py+14,5,5);
     }
-    // Rocket (right, bottom)
+    // Rocket
     {
         int rx = m_stripRect.x() + m_stripRect.width() - 48;
         int ry = m_stripRect.y() + m_stripRect.height() - 80;
-        // body
         p.setBrush(QColor("#E8E8E8")); p.setPen(Qt::NoPen);
         p.drawRoundedRect(rx+8,ry+8,24,48,6,6);
-        // nose
         QPainterPath nose; nose.moveTo(rx+8,ry+8); nose.lineTo(rx+20,ry); nose.lineTo(rx+32,ry+8);
         p.setBrush(QColor("#F44336")); p.drawPath(nose);
-        // window
         p.setBrush(QColor("#90CAF9")); p.drawEllipse(rx+12,ry+16,16,16);
-        // fins
         QPainterPath fl; fl.moveTo(rx+8,ry+40); fl.lineTo(rx,ry+56); fl.lineTo(rx+8,ry+56);
         QPainterPath fr; fr.moveTo(rx+32,ry+40); fr.lineTo(rx+40,ry+56); fr.lineTo(rx+32,ry+56);
         p.setBrush(QColor("#F44336")); p.drawPath(fl); p.drawPath(fr);
-        // flame
         p.setBrush(QColor("#FF9800")); p.drawEllipse(rx+10,ry+54,20,14);
         p.setBrush(QColor("#FFEB3B")); p.drawEllipse(rx+14,ry+57,12,10);
     }
-    // Wave decoration at bottom
+    // Wave
     {
         int wy = m_stripRect.y() + m_stripRect.height() - 42;
         QPainterPath wave;

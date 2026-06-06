@@ -32,6 +32,7 @@ public:
 
     void startSession(bool uploadMode = false);
     void stopCamera();
+    void updateCameraDeviceAndResolution(const QString &cameraId, const QSize &resolution);
 
 signals:
     void photosReady(const QVector<QPixmap> &photos);

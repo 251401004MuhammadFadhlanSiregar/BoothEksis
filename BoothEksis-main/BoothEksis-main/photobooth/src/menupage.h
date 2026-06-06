@@ -12,6 +12,7 @@ public:
 signals:
     void takePhotosClicked();
     void uploadPhotosClicked();
+    void settingsClicked(); // Added settings clicked signal
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -23,4 +24,5 @@ private:
 
     QPushButton *m_takeBtn;
     QPushButton *m_uploadBtn;
+    QPushButton *m_settingsBtn; // Added settings button widget
 };

@@ -42,12 +42,11 @@ protected:
     void mouseMoveEvent(QMouseEvent *) override;
     void mouseReleaseEvent(QMouseEvent *) override;
 
-
 private:
     void drawBackground(QPainter &p) const;
-    void drawSparkle(QPainter &p, QPointF c, float sz, QColor col) const;   // type 0-4
+    void drawSparkle(QPainter &p, QPointF c, float sz, QColor col) const;
 
-    // Layout (fixed inside the canvas widget)
+    // Layout
     QRect m_stripRect;
     QRect m_slot0Rect;
     QRect m_slot1Rect;
@@ -55,19 +54,19 @@ private:
     QVector<QPixmap>    m_photos;
     QVector<StickerItem> m_stickers;
 
-    int      m_dragIdx;        // -1 = none
-    int      m_selectedIdx;    // sticker yang sedang dipilih (tampilkan handle)
-    DragMode m_dragMode;       // mode operasi saat ini
+    int      m_dragIdx;        // -growIdx
+    int      m_selectedIdx;    // sticker selection index
+    DragMode m_dragMode;
 
     QPointF  m_dragOffset;
-    qreal    m_resizeStartSize; // ukuran awal saat mulai resize
-    qreal    m_resizeStartDist; // jarak mouse ke center saat mulai resize
+    qreal    m_resizeStartSize;
+    qreal    m_resizeStartDist;
 
-    // Helper functions
     QPointF toLocalSpace(int idx, QPointF pt) const;
     bool    hitResizeHandle(int idx, QPointF pt) const;
     bool    hitRotateHandle(int idx, QPointF pt) const;
 };
+
 // ── StickerPage: wraps StickerCanvas + UI controls ───────────────────
 class StickerPage : public QWidget
 {
@@ -94,7 +93,6 @@ private:
 
     StickerCanvas *m_canvas;
 
-    // Sticker type pixmaps (pre-generated)
     QVector<QPixmap> m_stickerPreviews;
 
     QPushButton *m_downloadBtn;

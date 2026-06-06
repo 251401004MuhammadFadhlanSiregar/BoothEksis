@@ -18,7 +18,6 @@ static const QColor C_STAR2     { "#FFB6C1" };   // light pink
 static const QColor C_STAR3     { "#B8FFD0" };   // mint green
 static const QColor C_BROWN     { "#A0522D" };   // bootheksis text
 
-// ── helper: 4-pointed sparkle ───────────────────────────────────────
 void MenuPage::drawSparkle(QPainter &p, QPointF c, float sz, QColor col)
 {
     p.save();
@@ -39,7 +38,6 @@ void MenuPage::drawSparkle(QPainter &p, QPointF c, float sz, QColor col)
     p.restore();
 }
 
-// ── helper: draw kawaii astronaut cat logo ───────────────────────────
 void MenuPage::drawBootheksisLogo(QPainter &p, QRect area)
 {
     p.save();
@@ -84,7 +82,6 @@ void MenuPage::drawBootheksisLogo(QPainter &p, QRect area)
     p.restore();
 }
 
-// ── MenuPage ─────────────────────────────────────────────────────────
 MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
 {
     setupUI();
@@ -94,14 +91,14 @@ void MenuPage::setupUI()
 {
     // --- Take Photos button ---
     m_takeBtn = new QPushButton("📷  Take Photos", this);
-    m_takeBtn->setGeometry(175, 370, 470, 65);
+    m_takeBtn->setGeometry(175, 360, 470, 58);
     m_takeBtn->setCursor(Qt::PointingHandCursor);
     m_takeBtn->setStyleSheet(
         "QPushButton {"
         "  background: #FAFAC8;"
         "  border: none;"
-        "  border-radius: 22px;"
-        "  font-size: 20px;"
+        "  border-radius: 18px;"
+        "  font-size: 18px;"
         "  font-weight: bold;"
         "  color: #333;"
         "}"
@@ -113,22 +110,19 @@ void MenuPage::setupUI()
 
     // --- Upload Photos button ---
     m_uploadBtn = new QPushButton("⬆  Upload Photos", this);
-    m_uploadBtn->setGeometry(175, 460, 470, 65);
+    m_uploadBtn->setGeometry(175, 435, 470, 58);
     m_uploadBtn->setCursor(Qt::PointingHandCursor);
-    m_uploadBtn->setStyleSheet(
-        "QPushButton {"
-        "  background: #FAFAC8;"
-        "  border: none;"
-        "  border-radius: 22px;"
-        "  font-size: 20px;"
-        "  font-weight: bold;"
-        "  color: #333;"
-        "}"
-        "QPushButton:hover { background: #F0F090; }"
-        "QPushButton:pressed { background: #E0E070; }"
-    );
+    m_uploadBtn->setStyleSheet(m_takeBtn->styleSheet());
     connect(m_uploadBtn, &QPushButton::clicked,
             this, &MenuPage::uploadPhotosClicked);
+
+    // --- Settings button ---
+    m_settingsBtn = new QPushButton("⚙️  Pengaturan App", this);
+    m_settingsBtn->setGeometry(175, 510, 470, 58);
+    m_settingsBtn->setCursor(Qt::PointingHandCursor);
+    m_settingsBtn->setStyleSheet(m_takeBtn->styleSheet());
+    connect(m_settingsBtn, &QPushButton::clicked,
+            this, &MenuPage::settingsClicked);
 }
 
 void MenuPage::paintEvent(QPaintEvent *)
@@ -179,7 +173,6 @@ void MenuPage::paintEvent(QPaintEvent *)
                Qt::AlignHCenter, "Bootheksis");
 
     // ── "SPACE ⊕ ADVENTURE" title ──
-    // Shadow / outline pass
     QFont titleFont("Arial Rounded MT Bold", 42, QFont::Black);
     titleFont.setItalic(false);
     if (!titleFont.exactMatch())
@@ -202,9 +195,8 @@ void MenuPage::paintEvent(QPaintEvent *)
                      C_TITLE, Qt::white);
 
     // ── decorative camera icon left of take-photos button ──
-    // (drawn as simple SVG-ish shape using painter)
     p.save();
-    p.translate(115, 382);
+    p.translate(115, 370);
     p.setRenderHint(QPainter::Antialiasing);
     // camera body
     p.setPen(Qt::NoPen);
@@ -227,7 +219,7 @@ void MenuPage::paintEvent(QPaintEvent *)
 
     // ── decorative upload icon right of upload button ──
     p.save();
-    p.translate(W - 130, 468);
+    p.translate(W - 130, 438);
     p.setPen(Qt::NoPen);
     p.setBrush(QColor("#E08090"));
     p.drawEllipse(0, 0, 52, 52);
